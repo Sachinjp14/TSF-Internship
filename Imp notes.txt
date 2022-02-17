@@ -1,0 +1,642 @@
+# CA1 2019-20
+#=========================================================
+
+library(class) # contains knn()
+library(MASS)  # to have lda()
+library(car)
+library(ISLR) # contains the datasets
+library(pROC) 
+library(tree)
+library(randomForest)
+
+
+set.seed(4061)
+n = nrow(Caravan)
+dat = Caravan[sample(1:n, n, replace=FALSE), ]
+dat$Purchase = as.factor(as.numeric(dat$Purchase=="Yes"))
+i.train = sample(1:n, round(.7*n), replace=FALSE)
+x.train = dat[i.train, -ncol(dat)]
+y.train = dat$Purchase[i.train]
+x.test = dat[-i.train, -ncol(dat)]
+y.test = dat$Purchase[-i.train]
+
+# (1) Fitting logistic regression model GLM
+#=========================================================
+set.seed(4061)
+n = nrow(Caravan)
+dat = Caravan[sample(1:n, n, replace=FALSE), ]
+dat$Purchase = as.factor(as.numeric(dat$Purchase=="Yes"))
+i.train = sample(1:n, round(.7*n), replace=FALSE)
+x.train = dat[i.train, -ncol(dat)]
+y.train = dat$Purchase[i.train]
+x.test = dat[-i.train, -ncol(dat)]
+y.test = dat$Purchase[-i.train]
+
+fit = glm(Purchase~., data=dat , subset =i.train,  family=binomial(logit))
+
+pred = (predict(fit, newdata=dat[-i.train,], type="response")>0.5)
+
+tb = table(pred, y.test)
+
+
+# (2) Random Forest
+#=========================================================
+set.seed(4061)
+n = nrow(Caravan)
+dat = Caravan[sample(1:n, n, replace=FALSE), ]
+dat$Purchase = as.factor(as.numeric(dat$Purchase=="Yes"))
+i.train = sample(1:n, round(.7*n), replace=FALSE)
+x.train = dat[i.train, -ncol(dat)]
+y.train = dat$Purchase[i.train]
+x.test = dat[-i.train, -ncol(dat)]
+y.test = dat$Purchase[-i.train]
+
+CS.train = data.frame(x.train, y.train)
+CS.test = data.frame(x.test, y.test)
+
+rf1.out = randomForest(y.train~., CS.train, ntree=100)
+
+#Fitted values for the test data
+rf1.yhat = predict(rf1.out, CS.test, type="class")
+(tb1.rf = table(rf1.yhat, CS.test$y.test))
+
+# Classification error rates
+sum(diag(tb1.rf))/sum(tb1.rf)
+
+# (3) GBM
+#=========================================================
+set.seed(4061)
+library(gbm)
+n = nrow(Caravan)
+dat = Caravan[sample(1:n, n, replace=FALSE), ]
+dat$Purchase = as.numeric(dat$Purchase=="Yes")
+i.train = sample(1:n, round(.7*n), replace=FALSE)
+x.train = dat[i.train, -ncol(dat)]
+y.train = dat$Purchase[i.train]
+x.test = dat[-i.train, -ncol(dat)]
+y.test = dat$Purchase[-i.train]
+CS.train = data.frame(x.train, y.train)
+CS.test  = data.frame(x.test, y.test)
+
+gb.out = gbm(y.train~., data=CS.train, 
+             distribution="bernoulli", # use "gaussian" instead for regression
+             n.trees=100, # size of the ensemble
+             interaction.depth=1)
+
+summary(gb.out$train.error)
+
+
+gb.p = predict(gb.out, newdata=CS.test, n.trees=100)
+
+
+(tb1.gb = table(gb.p, y.test))
+
+
+# (4) ROC and AUC
+#=========================================================
+
+roc.glm = roc(y.test, pred)
+auc.glm = roc(y.test, pred)$auc
+
+roc.rf = roc(response=CS.train$y.train, predictor=rf1.yhat)
+roc.rf
+roc.rf$auc
+
+roc.gb = roc(response=CS.test$y.test, predictor=gb.p)
+plot(roc.gb)
+roc.gb$auc
+
+********************************************************************************************************************************************
+
+
+# CA1 2018-19
+#==========================================================
+
+
+library(mlbench)
+library(glmnet)
+data(Sonar) 
+N = nrow(Sonar)
+P = ncol(Sonar)-1
+M = 150
+set.seed(1)
+mdata = Sonar[sample(1:N),]
+itrain = sample(1:N,M)
+x = mdata[,-ncol(mdata)]
+y = mdata$Class
+xm = as.matrix(x)
+
+xtrain = mdata[itrain,-ncol(mdata)]
+ytrain = mdata[itrain,]$Class
+ytest = mdata[-itrain,]$Class
+xmtrain = as.matrix(xtrain)
+
+# (1) How	many	observations	are	there	in	the	test	set?
+#=========================================================
+library(mlbench)
+library(glmnet)
+data(Sonar) 
+N = nrow(Sonar)
+P = ncol(Sonar)-1
+M = 150
+set.seed(1)
+mdata = Sonar[sample(1:N),]
+itrain = sample(1:N,M)
+x = mdata[,-ncol(mdata)]
+y = mdata$Class
+xm = as.matrix(x)
+
+xtrain = mdata[itrain,-ncol(mdata)]
+ytrain = mdata[itrain,]$Class
+ytest = mdata[-itrain,]$Class
+xmtrain = as.matrix(xtrain)
+ntest= nrow(Sonar[-itrain,])
+
+# (2) Optimal Regularization Parameter using Lasso 
+#========================================================
+library(mlbench)
+library(glmnet)
+data(Sonar) 
+N = nrow(Sonar)
+P = ncol(Sonar)-1
+M = 150
+set.seed(1)
+mdata = Sonar[sample(1:N),]
+itrain = sample(1:N,M)
+x = mdata[,-ncol(mdata)]
+y = mdata$Class
+xm = as.matrix(x)
+
+xtrain = mdata[itrain,-ncol(mdata)]
+ytrain = mdata[itrain,]$Class
+ytest = mdata[-itrain,]$Class
+
+lasso.cv = cv.glmnet(xm[itrain,], y[itrain], alpha=1, family="binomial")
+lasso.cv$lambda.min
+
+
+# (3) Fitting Lasso
+#========================================================
+library(mlbench)
+library(glmnet)
+data(Sonar) 
+N = nrow(Sonar)
+P = ncol(Sonar)-1
+M = 150
+set.seed(1)
+mdata = Sonar[sample(1:N),]
+itrain = sample(1:N,M)
+x = mdata[,-ncol(mdata)]
+y = mdata$Class
+xm = as.matrix(x)
+
+xtrain = mdata[itrain,-ncol(mdata)]
+ytrain = mdata[itrain,]$Class
+ytest = mdata[-itrain,]$Class
+xmtrain = as.matrix(xtrain)
+lasso = glmnet(xm[itrain,], y[itrain], lambda=lasso.cv$lambda.min, family="binomial")
+coef(lasso)
+
+# (4) Fit	a classification	 tree	to	the	 training	 set
+#========================================================
+
+library(mlbench)
+library(glmnet)
+library(tree)
+data(Sonar) 
+N = nrow(Sonar)
+P = ncol(Sonar)-1
+M = 150
+set.seed(1)
+mdata = Sonar[sample(1:N),]
+itrain = sample(1:N,M)
+x = mdata[,-ncol(mdata)]
+y = mdata$Class
+xm = as.matrix(x)
+
+xtrain = mdata[itrain,-ncol(mdata)]
+ytrain = mdata[itrain,]$Class
+ytest = mdata[-itrain,]$Class
+xmtrain = as.matrix(xtrain)
+
+CS = data.frame(xtrain, ytrain) #fitting the classification tree on the training data
+tree.out = tree(ytrain~., CS)
+summary(tree.out)
+
+plot(tree.out)
+text(tree.out, pretty=0)
+
+#[1] "V11" "V59" "V24" "V20" "V3"  "V16" "V49" "V55" "V31" "V1" 
+
+# (5) Fit	a random forest	to	the	 training	 set
+#===============================================
+
+library(mlbench)
+library(glmnet)
+data(Sonar) 
+N = nrow(Sonar)
+P = ncol(Sonar)-1
+M = 150
+set.seed(1)
+mdata = Sonar[sample(1:N),]
+itrain = sample(1:N,M)
+x = mdata[,-ncol(mdata)]
+y = mdata$Class
+xm = as.matrix(x)
+
+xtrain = mdata[itrain,-ncol(mdata)]
+ytrain = mdata[itrain,]$Class
+ytest = mdata[-itrain,]$Class
+xmtrain = as.matrix(xtrain)
+
+CS = data.frame(xtrain, ytrain)
+
+rf.out = randomForest(CS$ytrain~., CS)
+varImpPlot(rf.out, pch=15, main="Ensemble method 1")
+
+
+# (6) Predictions	from the classification tree and Random Forest
+#================================================================
+library(mlbench)
+library(glmnet)
+data(Sonar) 
+N = nrow(Sonar)
+P = ncol(Sonar)-1
+M = 150
+set.seed(1)
+mdata = Sonar[sample(1:N),]
+itrain = sample(1:N,M)
+x = mdata[,-ncol(mdata)]
+y = mdata$Class
+xm = as.matrix(x)
+
+xtrain = mdata[itrain,-ncol(mdata)]
+ytrain = mdata[itrain,]$Class
+ytest = mdata[-itrain,]$Class
+xmtrain = as.matrix(xtrain)
+
+X = data.frame(x, y) # complete data
+CS.test = X[-itrain,] # test data
+CS.train = X[itrain,]
+
+nrow(CS.test)
+#Fitted values for the test data --> Classification Tree
+tree.pred = predict(tree.out, CS.test, type="class")
+# Provide	 the	 confusion	 matrices
+(tb1 = table(tree.pred,CS.test$y))
+# Classification error rates
+1-sum(diag(tb1))/sum(tb1)
+
+#Fitted values for the test data --> Random Forest
+rf.yhat = predict(rf.out, CS.test, type="class")
+(tb.rf = table(rf.yhat, CS.test$y))
+# Classification error rates
+1-sum(diag(tb.rf))/sum(tb.rf)
+
+
+# (7) AUC Values for Random forest and Classification Tree
+#==========================================================
+
+library(pROC)
+library(mlbench)
+library(glmnet)
+data(Sonar) 
+N = nrow(Sonar)
+P = ncol(Sonar)-1
+M = 150
+set.seed(1)
+mdata = Sonar[sample(1:N),]
+itrain = sample(1:N,M)
+x = mdata[,-ncol(mdata)]
+y = mdata$Class
+xm = as.matrix(x)
+
+xtrain = mdata[itrain,-ncol(mdata)]
+ytrain = mdata[itrain,]$Class
+ytest = mdata[-itrain,]$Class
+xmtrain = as.matrix(xtrain)
+
+ptree.probs = predict(tree.out, CS.test, type="vector")
+a = pROC::roc(ytest, ptree.probs[,1], quiet = FALSE)
+a$auc
+plot(a)
+
+roc.p = roc(response=(ytest), predictor=ptree.probs[,1])
+roc.p$auc
+plot(roc.p)
+
+rf.p = predict(rf.out, CS.test, type="prob")[,2] 
+roc.rf = roc(response=CS.test$y, predictor=rf.p)
+plot(roc.rf, add=TRUE, col=2)
+roc.rf$auc
+
+#*********************************************************************************************************************
+
+# CA2 Solutions : Random forest MSE
+#========================================================
+library(MASS)
+library(tree)
+library(randomForest)
+dat =	Boston			# NOTE:	this	is	a	data.frame...
+set.seed(6041)
+dat =	dat[sample(1:nrow(dat)),]
+dat$zn <- NULL
+X = dat
+X$medv <- NULL
+X = scale(X)			# NOTE:	this	makes	it	a	matrix...
+Y = dat$medv
+n=nrow(dat)
+
+i.train = sample(1:n, 400, replace=FALSE)
+
+x.train = X[i.train,]
+x.test = X[-i.train,]
+y.train = Y[i.train]
+y.test = Y[-i.train]
+
+CS = data.frame(x.train, y.train)
+CS.test = data.frame(x.test, y.test)
+
+#MSE for train set
+rf.out = randomForest(y.train~., CS)
+
+rf.yhat = predict(rf.out, CS.test, type="class")
+
+
+#MSE for test set
+mean((rf.yhat-y.test)^2)
+
+# CA2 Solutions : Single regression tree MSE
+#================================================================
+library(MASS)
+library(tree)
+library(randomForest)
+dat =	Boston			# NOTE:	this	is	a	data.frame...
+set.seed(6041)
+dat =	dat[sample(1:nrow(dat)),]
+dat$zn <- NULL
+X = dat
+X$medv <- NULL
+X = scale(X)			# NOTE:	this	makes	it	a	matrix...
+Y = dat$medv
+n=nrow(dat)
+
+
+i.train = sample(1:n, 400, replace=FALSE)
+
+x.train = X[i.train,]
+x.test = X[-i.train,]
+y.train = Y[i.train]
+y.test = Y[-i.train]
+
+CS = data.frame(x.train, y.train)
+CS.test = data.frame(x.test, y.test)
+CS$y.train = NULL
+
+tree.out = tree(y.train~., CS)
+summary(tree.out)
+
+tree.pred = predict(tree.out, CS.test, type="vector")
+
+mean((tree.pred-y.test)^2)
+
+********************************************************************************************************
+
+# Arjun Paper : Logistic Regression
+#======================================================================
+
+library(class)
+library(MASS)
+library(pROC)
+
+set.seed(4061)
+x = read.csv(file="C:/Users/sachi/OneDrive/Documents/Sachin/Courses/Sem 1/ST 6030/CA1_data.csv", stringsAsFactors=TRUE)
+n = nrow(x)
+itrain = which(x$Year<2019)
+x$Year = NULL
+x.train = x[itrain,]
+x.test = x[-itrain,]
+y.test = x$Increase[-itrain]
+
+
+fit = glm(Increase~., data=x , subset = itrain,  family=binomial(logit))
+pred = (predict(fit, newdata=x[-itrain,], type="response")>0.5)
+
+plot(seq(.1, .9, by=.1), err, t='b')
+tbglm = table(pred, y.test)
+1-sum(diag(tbglm))/sum(tbglm)
+
+#=======================================================================
+
+# LDA:
+
+library(class)
+library(MASS)
+set.seed(4061)
+x = read.csv(file="C:/Users/sachi/OneDrive/Documents/Sachin/Courses/Sem 1/ST 6030/CA1_data.csv", stringsAsFactors=TRUE)
+n = nrow(x)
+#dat = x[sample(1:n, n, replace=FALSE), ]
+itrain = which(x$Year<2019)
+x$Year = NULL
+x.train = x[itrain,]
+x.test = x[-itrain,]
+y.test = x$Increase[-itrain]
+
+
+lda.o = lda(Increase~., data=x.train)
+lda.p = predict(lda.o, newdata=x.test)
+names(lda.p)
+(tb = table(lda.p$class, x.test$Increase))
+sum(diag(tb))/sum(tb)
+
+lda.p1 = predict(lda.o, newdata=x.test)$posterior[,2]
+auc.lda = roc(y.test, lda.p1)$auc
+auc.lda
+
+#=======================================================================
+
+# QDA:
+
+library(class)
+library(MASS)
+set.seed(4061)
+x = read.csv(file="C:/Users/sachi/OneDrive/Documents/Sachin/Courses/Sem 1/ST 6030/CA1_data.csv", stringsAsFactors=TRUE)
+n = nrow(x)
+#dat = x[sample(1:n, n, replace=FALSE), ]
+itrain = which(x$Year<2019)
+x$Year = NULL
+x.train = x[itrain,]
+x.test = x[-itrain,]
+y.test = x$Increase[-itrain]
+
+
+qda.o = qda(Increase~., data=x.train)
+qda.p = predict(qda.o, newdata=x.test)
+names(qda.p)
+(tb2 = table(qda.p$class, x.test$Increase))
+sum(diag(tb2))/sum(tb2)
+
+qda.p1 = predict(qda.o, newdata=x.test)$posterior[,2]
+auc.qda = roc(y.test, qda.p1)$auc
+auc.qda
+
+#=======================================================================
+
+# Get a random training sample containing 70% of original sample:
+# perform K-fold CV:
+K = 10
+N = length(itrain)
+folds = cut(1:N, K, labels=FALSE)
+acc.lda = acc.qda = acc.glm = numeric(K)
+auc.lda = auc.qda = auc.glm = numeric(K)
+#
+for(k in 1:K){ # 10-fold CV loop
+  
+  # split into train and test samples:
+  i.train = which(folds!=k)
+  dat.train = x.train[i.train, ]
+  dat.test = x.train[-i.train, ]
+  y.test = dat.test[,1]
+  
+  # train classifiers:
+  glm.o = glm(x$Increase~., data=x ,subset = i.train, family=binomial(logit))
+  lda.o = lda(x$Increase~., data=x ,subset = i.train)
+  qda.o = qda(x$Increase~., data=x ,subset = i.train)
+  
+  # test classifiers:
+  glm.p = ( predict(glm.o, newdata=dat.test, type="response") > 0.5 )
+  lda.p = predict(lda.o, newdata=dat.test)$class
+  qda.p = predict(qda.o, newdata=dat.test)$class
+  
+  #confusion matrix
+  tb.glm = table(glm.p, y.test)
+  tb.lda = table(lda.p, y.test)
+  tb.qda = table(qda.p, y.test)
+  
+  # store prediction accuracies:
+  acc.glm[k] = sum(diag(tb.glm)) / sum(tb.glm)
+  acc.lda[k] = sum(diag(tb.lda)) / sum(tb.lda)
+  acc.qda[k] = sum(diag(tb.qda)) / sum(tb.qda)
+  
+  
+  glm.p = predict(glm.o, newdata=dat.test, type="response")
+  lda.p = predict(lda.o, newdata=dat.test)$posterior[,2]
+  qda.p = predict(qda.o, newdata=dat.test)$posterior[,2]
+  
+  #AUC
+  auc.glm[k] = roc(y.test, glm.p)$auc
+  auc.lda[k] = roc(y.test, lda.p)$auc
+  auc.qda[k] = roc(y.test, qda.p)$auc
+}
+
+boxplot(acc.glm,acc.lda, acc.qda,
+        main="Overall CV prediction accuracy",
+        names=c("GLM","LDA","QDA"))
+
+boxplot(auc.glm,auc.lda, auc.qda,
+        main="Overall CV AUC",
+        names=c("GLM","LDA","QDA"))
+
+mean(auc.glm)
+mean(auc.lda)
+mean(auc.qda)
+
+mean(acc.glm)
+mean(acc.lda)
+mean(acc.qda)
+
+#=================================================================================
+
+# Summer Paper : GBM with Gaussian data *** (Be careful)
+#=================================================================================
+library(class) # contains knn()
+library(MASS)  # to have lda()
+library(car)
+library(ISLR) # contains the datasets
+library(pROC) 
+library(caret)
+library(gbm)
+
+dat = read.csv(file="C:/Users/sachi/OneDrive/Documents/Sachin/Courses/Sem 1/ST 6030/dodgysales.csv", stringsAsFactors=TRUE)
+n = nrow(dat)
+set.seed(6041)
+i.train = sample(1:n, floor(.7*n))
+dat.train = dat[i.train,]
+dat.validation = dat[-i.train,]
+ytrue = dat.validation$Sales
+ytrain = dat.train$Sales
+ytest  = dat.validation$Sales
+
+#ncol(dat)-1
+
+gb.out = train(Sales~., data=dat.train, method='gbm', distribution='gaussian')
+gb.fitted = predict(gb.out) # corresponding fitted values
+gb.pred = predict(gb.out, dat.validation)
+mean((gb.pred-ytrue)^2)
+mean((gb.fitted-ytrain)^2)
+
+
+# GLM with Gaussian data **** Be careful
+#=================================================================================
+library(class) # contains knn()
+library(MASS)  # to have lda()
+library(car)
+library(ISLR) # contains the datasets
+library(pROC) 
+library(caret)
+library(gbm)
+
+dat = read.csv(file="C:/Users/sachi/OneDrive/Documents/Sachin/Courses/Sem 1/ST 6030/dodgysales.csv", stringsAsFactors=TRUE)
+n = nrow(dat)
+set.seed(6041)
+i.train = sample(1:n, floor(.7*n))
+dat.train = dat[i.train,]
+dat.validation = dat[-i.train,]
+ytrue = dat.validation$Sales
+ytrain = dat.train$Sales
+ytest  = dat.validation$Sales
+
+fit = glm(Sales~., data=dat , subset = i.train,  family='gaussian' )
+pred = (predict(fit, newdata=dat.validation, type="response"))
+
+#MSE for Train
+mean((fit$fitted.values - dat.train$Sales)^2)
+
+#MSE for Test
+mean((pred- dat.validation$Sales)^2)
+
+
+# Ridge Regression
+#==================================================================================
+library(class) # contains knn()
+library(MASS)  # to have lda()
+library(car)
+library(ISLR) # contains the datasets
+library(pROC) 
+library(caret)
+library(gbm)
+
+dat = read.csv(file="C:/Users/sachi/OneDrive/Documents/Sachin/Courses/Sem 1/ST 6030/dodgysales.csv", stringsAsFactors=TRUE)
+n = nrow(dat)
+set.seed(6041)
+i.train = sample(1:n, floor(.7*n))
+dat.train = dat[i.train,]
+dat.validation = dat[-i.train,]
+ytrue = dat.validation$Sales
+
+x = model.matrix(Sales~., data=dat)[,-1]
+y = dat$Sales
+
+x.train = x[i.train,]
+x.test = x[-i.train,]
+y.train = y[i.train]
+y.test = y[-i.train]
+
+
+lasso.cv = cv.glmnet(x.train, ytrain, alpha=0)
+lasso = glmnet(x.train, ytrain, alpha=1, lambda=lasso.cv$lambda.min)
+
+ridge.pred.train = predict(lasso.cv, newx=x.train)
+mean((ridge.pred.train-y.train)^2)
+ridge.pred.test = predict(lasso.cv, newx=x.test)
+mean((ridge.pred.test-y.test)^2)
